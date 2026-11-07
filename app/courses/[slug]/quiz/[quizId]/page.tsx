@@ -38,10 +38,13 @@ export async function generateMetadata({
 
 export default async function QuizPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; quizId: string }>;
+  searchParams?: Promise<{ mode?: string; from?: string }>;
 }) {
   const { slug, quizId } = await params;
+  const sp = searchParams ? await searchParams : undefined;
   const course = courses.find((c) => c.slug === slug);
   const quiz = quizzes.find((q) => q.id === quizId);
 
@@ -49,5 +52,12 @@ export default async function QuizPage({
     notFound();
   }
 
-  return <QuizRunner course={course} quiz={quiz} />;
+  return (
+    <QuizRunner
+      course={course}
+      quiz={quiz}
+      retryMode={sp?.mode === 'retry-incorrect'}
+      fromAttemptId={sp?.from}
+    />
+  );
 }

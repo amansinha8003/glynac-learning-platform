@@ -39,11 +39,14 @@ import {
   ArrowLeft,
   CheckCircle2,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 
 interface QuizRunnerProps {
   course: Course;
   quiz: Quiz;
+  retryMode?: boolean;
+  fromAttemptId?: string;
 }
 
 type QuizPhase = 'intro' | 'running' | 'submitting';
@@ -68,7 +71,12 @@ function getSavedSession(key: string): QuizSessionData | null {
   return null;
 }
 
-export function QuizRunner({ course, quiz }: QuizRunnerProps) {
+export function QuizRunner({
+  course,
+  quiz,
+  retryMode = false,
+  fromAttemptId,
+}: QuizRunnerProps) {
   const router = useRouter();
   const isHydrated = useHydrated();
 
@@ -78,7 +86,26 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
   const quizAttempts = useLearningStore((s) => s.quizAttempts);
   const hasStoreHydrated = useLearningStore((s) => s.hasHydrated);
 
-  const sessionKey = `glynac_quiz_session_${quiz.id}`;
+  // Look up source attempt if in retry mode
+  const fromAttempt = useMemo(() => {
+    if (!retryMode || !fromAttemptId || !isHydrated) return null;
+    return quizAttempts.find((a) => a.id === fromAttemptId) || null;
+  }, [retryMode, fromAttemptId, isHydrated, quizAttempts]);
+
+  // Questions subset for retry mode vs full mode
+  const questions = useMemo(() => {
+    if (retryMode && fromAttempt) {
+      const incorrectOnly = quiz.questions.filter(
+        (q) => fromAttempt.perQuestionResult[q.id] === false
+      );
+      if (incorrectOnly.length > 0) return incorrectOnly;
+    }
+    return quiz.questions;
+  }, [retryMode, fromAttempt, quiz.questions]);
+
+  const sessionKey = retryMode
+    ? `glynac_quiz_session_${quiz.id}_retry`
+    : `glynac_quiz_session_${quiz.id}`;
 
   // Restore in-progress session lazily without cascading effect sets
   const initialSession = useMemo(() => getSavedSession(sessionKey), [sessionKey]);
@@ -139,11 +166,11 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
 
   // Beforeunload warning while running
   useEffect(() => {
+    if (phase !== 'running') return;
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (phase === 'running') {
-        e.preventDefault();
-        e.returnValue = '';
-      }
+      e.preventDefault();
+      e.returnValue = '';
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -155,13 +182,13 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
   // Initialize order state for drag-to-order questions
   const initializeOrderQuestions = useCallback(() => {
     const initialOrders: Record<string, string[]> = {};
-    quiz.questions.forEach((q) => {
+    questions.forEach((q) => {
       if (q.type === 'order') {
         initialOrders[q.id] = shuffleOptions(q.options, `${quiz.id}-${q.id}`);
       }
     });
     return initialOrders;
-  }, [quiz]);
+  }, [quiz.id, questions]);
 
   // Start Quiz
   const handleStartQuiz = () => {
@@ -195,7 +222,7 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
   };
 
   // Active question
-  const currentQuestion = quiz.questions[currentIndex];
+  const currentQuestion = questions[currentIndex] || questions[0];
   const currentAnswer = answers[currentQuestion?.id];
   const isCurrentChecked = checkedQuestions[currentQuestion?.id] === true;
   const isCurrentCorrect = isCurrentChecked
@@ -212,60 +239,66 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
     });
   };
 
-  // Answer handler for multi select
+  // Answer handler for multi choice
   const handleMultiToggle = (optionIndex: number) => {
     if (checkedQuestions[currentQuestion?.id]) return;
     setAnswers((prev) => {
-      const currentList = (prev[currentQuestion.id] as number[]) || [];
-      const nextList = currentList.includes(optionIndex)
-        ? currentList.filter((idx) => idx !== optionIndex)
-        : [...currentList, optionIndex].sort((a, b) => a - b);
-
-      const next = { ...prev, [currentQuestion.id]: nextList };
+      const currentArr = (prev[currentQuestion.id] as number[]) || [];
+      const exists = currentArr.includes(optionIndex);
+      const nextArr = exists
+        ? currentArr.filter((i) => i !== optionIndex)
+        : [...currentArr, optionIndex];
+      const next = { ...prev, [currentQuestion.id]: nextArr };
       saveSession({ answers: next });
       return next;
     });
   };
 
-  // Answer handler for drag order
-  const handleOrderReorder = (newItems: string[]) => {
-    if (isCurrentChecked) return;
-    const nextAnswers = { ...answers, [currentQuestion.id]: newItems };
-    const nextOrders = { ...orderState, [currentQuestion.id]: newItems };
-    setAnswers(nextAnswers);
-    setOrderState(nextOrders);
-    saveSession({ answers: nextAnswers, orderState: nextOrders });
+  // Answer handler for drag-to-order
+  const handleOrderReorder = (newOrder: string[]) => {
+    if (checkedQuestions[currentQuestion?.id]) return;
+    setOrderState((prev) => ({ ...prev, [currentQuestion.id]: newOrder }));
+    setAnswers((prev) => {
+      const next = { ...prev, [currentQuestion.id]: newOrder };
+      saveSession({ answers: next, orderState: { ...orderState, [currentQuestion.id]: newOrder } });
+      return next;
+    });
   };
 
-  // Check Answer for current question
+  // Check answer button
   const handleCheckAnswer = () => {
-    if (!isAnswered(currentQuestion, currentAnswer)) return;
-    const nextChecked = { ...checkedQuestions, [currentQuestion.id]: true };
-    setCheckedQuestions(nextChecked);
-    saveSession({ checkedQuestions: nextChecked });
+    if (!currentQuestion) return;
+    setCheckedQuestions((prev) => {
+      const next = { ...prev, [currentQuestion.id]: true };
+      saveSession({ checkedQuestions: next });
+      return next;
+    });
   };
 
-  // Navigate to Question
+  // Navigate question via navigator circles
   const handleNavigateQuestion = (index: number) => {
-    if (index >= 0 && index < quiz.questions.length) {
+    if (index >= 0 && index < questions.length) {
       setCurrentIndex(index);
       saveSession({ currentIndex: index });
     }
   };
 
-  // Next Question
+  // Next question
   const handleNextQuestion = () => {
-    if (currentIndex < quiz.questions.length - 1) {
-      handleNavigateQuestion(currentIndex + 1);
+    if (currentIndex < questions.length - 1) {
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      saveSession({ currentIndex: nextIndex });
     }
   };
 
-  // Finish Submission logic
+  // Submit and save attempt to persistent store
   const submitQuiz = useCallback(() => {
     setPhase('submitting');
     sessionStorage.removeItem(sessionKey);
+    sessionStorage.removeItem(`glynac_quiz_session_${quiz.id}_retry`);
 
-    const scoring = scoreQuiz(quiz, answers);
+    const scoring = scoreQuiz({ ...quiz, questions }, answers);
 
     const attemptId = saveQuizAttempt({
       quizId: quiz.id,
@@ -275,15 +308,28 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
       answers,
       scorePercent: scoring.scorePercent,
       perQuestionResult: scoring.perQuestionResult,
+      mode: retryMode ? 'retry-incorrect' : 'full',
     });
 
     recordActivity();
     router.push(`/courses/${course.slug}/quiz/${quiz.id}/result/${attemptId}`);
-  }, [sessionKey, quiz, answers, saveQuizAttempt, course.id, startedAt, recordActivity, router, course.slug]);
+  }, [
+    sessionKey,
+    quiz,
+    questions,
+    answers,
+    saveQuizAttempt,
+    course.id,
+    course.slug,
+    startedAt,
+    recordActivity,
+    router,
+    retryMode,
+  ]);
 
   // Finish button click
   const handleFinishQuizClick = () => {
-    const unansweredCount = quiz.questions.filter(
+    const unansweredCount = questions.filter(
       (q) => !isAnswered(q, answers[q.id])
     ).length;
 
@@ -305,23 +351,23 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
   // Sets for QuestionNavigator
   const answeredIndices = useMemo(() => {
     const set = new Set<number>();
-    quiz.questions.forEach((q, idx) => {
+    questions.forEach((q, idx) => {
       if (isAnswered(q, answers[q.id])) {
         set.add(idx);
       }
     });
     return set;
-  }, [quiz.questions, answers]);
+  }, [questions, answers]);
 
   const checkedIndices = useMemo(() => {
     const set = new Set<number>();
-    quiz.questions.forEach((q, idx) => {
+    questions.forEach((q, idx) => {
       if (checkedQuestions[q.id]) {
         set.add(idx);
       }
     });
     return set;
-  }, [quiz.questions, checkedQuestions]);
+  }, [questions, checkedQuestions]);
 
   // Ref to hold keyboard action handlers to avoid dependency recreation
   const runnerActionsRef = useRef({
@@ -334,7 +380,7 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
     isCurrentChecked,
     currentAnswer,
     currentIndex,
-    totalQuestions: quiz.questions.length,
+    totalQuestions: questions.length,
   });
 
   useEffect(() => {
@@ -348,7 +394,7 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
       isCurrentChecked,
       currentAnswer,
       currentIndex,
-      totalQuestions: quiz.questions.length,
+      totalQuestions: questions.length,
     };
   });
 
@@ -358,39 +404,48 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
 
-      const actions = runnerActionsRef.current;
+      const {
+        currentQuestion: cq,
+        isCurrentChecked: isChecked,
+        currentAnswer: ca,
+        currentIndex: cIdx,
+        totalQuestions: totalQ,
+        handleSingleSelect: doSingle,
+        handleMultiToggle: doMulti,
+        handleCheckAnswer: doCheck,
+        handleNextQuestion: doNext,
+        handleFinishQuizClick: doFinish,
+      } = runnerActionsRef.current;
 
-      // Keys 1-4 for options
-      if (['1', '2', '3', '4'].includes(e.key)) {
+      // Digits 1-4
+      if (['1', '2', '3', '4'].includes(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const optionIdx = parseInt(e.key, 10) - 1;
-        if (actions.currentQuestion && optionIdx < actions.currentQuestion.options.length) {
-          e.preventDefault();
-          if (actions.currentQuestion.type === 'single') {
-            actions.handleSingleSelect(optionIdx);
-          } else if (actions.currentQuestion.type === 'multi') {
-            actions.handleMultiToggle(optionIdx);
+        if (cq && !isChecked) {
+          if (cq.type === 'single') {
+            e.preventDefault();
+            doSingle(optionIdx);
+          } else if (cq.type === 'multi') {
+            e.preventDefault();
+            doMulti(optionIdx);
           }
         }
       }
 
-      // Enter key checks or advances
+      // Enter key
       if (e.key === 'Enter') {
-        e.preventDefault();
-        if (!actions.isCurrentChecked && isAnswered(actions.currentQuestion, actions.currentAnswer)) {
-          actions.handleCheckAnswer();
-        } else if (actions.isCurrentChecked) {
-          if (actions.currentIndex < actions.totalQuestions - 1) {
-            actions.handleNextQuestion();
+        if (!isChecked && isAnswered(cq, ca)) {
+          e.preventDefault();
+          doCheck();
+        } else if (isChecked) {
+          e.preventDefault();
+          if (cIdx === totalQ - 1) {
+            doFinish();
           } else {
-            actions.handleFinishQuizClick();
+            doNext();
           }
         }
       }
@@ -402,11 +457,11 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
     };
   }, [phase]);
 
-  // Loading skeleton during initial store hydration
+  // Loading skeleton while waiting for store hydration
   if (!isHydrated) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 animate-pulse space-y-6">
-        <div className="h-10 w-48 bg-muted rounded-xl" />
+        <div className="h-8 w-48 bg-muted rounded-md" />
         <div className="h-64 w-full bg-muted/60 rounded-3xl" />
         <div className="h-12 w-32 bg-muted rounded-xl" />
       </div>
@@ -425,14 +480,14 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 border border-primary/20">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Assessment Checkpoint</span>
+              <span>{retryMode ? 'Targeted Revision' : 'Assessment Checkpoint'}</span>
             </div>
 
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
               Course: {course.title}
             </span>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
-              {quiz.title}
+              {quiz.title} {retryMode && '(Retry Mode)'}
             </h1>
           </div>
 
@@ -442,7 +497,7 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
               <HelpCircle className="h-5 w-5 text-primary mb-1.5" />
               <span className="text-xs text-muted-foreground">Questions</span>
               <span className="font-extrabold text-lg text-foreground">
-                {quiz.questions.length}
+                {questions.length}
               </span>
             </div>
 
@@ -464,7 +519,7 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
           </div>
 
           {/* Best Previous Attempt (if exists) */}
-          {bestAttempt && (
+          {bestAttempt && !retryMode && (
             <div className="p-4 rounded-2xl border border-primary/30 bg-primary/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
@@ -479,51 +534,70 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
                   </p>
                 </div>
               </div>
-              <Badge variant={bestAttempt.scorePercent >= quiz.passingScorePercent ? 'default' : 'secondary'} className="text-xs">
+              <Badge variant="outline" className="text-xs">
                 {bestAttempt.scorePercent >= quiz.passingScorePercent ? 'Passed' : 'Needs Practice'}
               </Badge>
             </div>
           )}
 
-          {/* Rules List */}
+          {/* Retry Mode Callout */}
+          {retryMode && (
+            <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <RotateCcw className="h-5 w-5" />
+              </div>
+              <div className="text-xs">
+                <h4 className="font-bold text-foreground">Retrying Missed Questions</h4>
+                <p className="text-muted-foreground">
+                  Focusing strictly on the {questions.length} questions you answered incorrectly on your previous attempt.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Assessment Guidelines / Rules */}
           <div className="space-y-3 pt-2">
-            <h4 className="font-bold text-sm text-foreground">Assessment Guidelines:</h4>
-            <ul className="space-y-2 text-xs sm:text-sm text-muted-foreground leading-relaxed pl-1">
+            <h3 className="text-xs uppercase font-extrabold tracking-wider text-muted-foreground">
+              Guidelines & Rules
+            </h3>
+            <ul className="text-xs text-muted-foreground space-y-2">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span>Instant feedback is provided upon checking each response.</span>
+                <span>
+                  Select your answers and click <strong>Check Answer</strong> or press <strong>Enter</strong> to inspect explanations immediately.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span>Multi-select questions require all correct options for full score.</span>
+                <span>
+                  You can jump back and forth between questions anytime using the question navigator below.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span>Order challenges can be rearranged using drag & drop or up/down arrows.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span>You can review locked questions at any time before final submission.</span>
+                <span>
+                  Passing score is <strong>{quiz.passingScorePercent}%</strong>. Your best score will be recorded to your learning profile.
+                </span>
               </li>
             </ul>
           </div>
 
-          {/* Action Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-border">
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground">
+          {/* Start CTA */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border">
+            <Button asChild variant="outline" size="sm" className="w-full sm:w-auto text-xs">
               <Link href={`/courses/${course.slug}`}>
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Back to Course</span>
+                <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+                Back to Course
               </Link>
             </Button>
 
             <Button
               size="lg"
+              className="w-full sm:w-auto gap-2 text-sm font-bold shadow-md bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleStartQuiz}
-              className="font-bold text-sm gap-2 shadow-md px-6"
             >
-              <Play className="h-4 w-4 fill-current ml-0.5" />
-              <span>Start Quiz</span>
+              <Play className="h-4 w-4 fill-current" />
+              Start Assessment
             </Button>
           </div>
         </div>
@@ -531,20 +605,25 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
     );
   }
 
-  // PHASE 2: RUNNING & SUBMITTING
-  return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
-      {/* Time Up Alert Banner */}
-      {timeUpAlert && (
-        <div className="p-4 rounded-2xl bg-destructive text-white text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xl animate-bounce">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <span>Time&apos;s up! Automatically scoring and submitting your quiz attempt...</span>
-        </div>
-      )}
+  // PHASE 3: SUBMITTING / SCORING SCREEN
+  if (phase === 'submitting') {
+    return (
+      <div className="max-w-md mx-auto px-4 py-24 text-center space-y-4">
+        <div className="h-16 w-16 mx-auto rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        <h2 className="text-xl font-bold text-foreground">Scoring Assessment...</h2>
+        <p className="text-xs text-muted-foreground">
+          Calculating your answers and saving your attempt history.
+        </p>
+      </div>
+    );
+  }
 
-      {/* Quiz Top Header */}
+  // PHASE 2: RUNNING QUIZ
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
+      {/* Quiz Top Header & Timer */}
       <QuizHeader
-        quizTitle={quiz.title}
+        quizTitle={retryMode ? `${quiz.title} (Retry)` : quiz.title}
         courseTitle={course.title}
         timeLimitSeconds={quiz.timeLimitSeconds}
         startedAtTimestamp={startedAtTimestamp}
@@ -552,9 +631,19 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
         onLeaveQuiz={handleLeaveQuiz}
       />
 
-      {/* Main Question Card Container */}
-      <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm space-y-6">
-        {/* Render Question by Type */}
+      {/* Time Up Alert Banner */}
+      {timeUpAlert && (
+        <div className="p-4 rounded-2xl bg-destructive/15 border border-destructive/30 text-destructive flex items-center gap-3 animate-bounce">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <div className="text-xs font-semibold">
+            Time limit reached! Submitting your answers now...
+          </div>
+        </div>
+      )}
+
+      {/* Question Container Card */}
+      <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-md space-y-6">
+        {/* Render question based on discriminated union type */}
         {currentQuestion.type === 'single' && (
           <QuestionSingle
             question={currentQuestion}
@@ -576,7 +665,7 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
         {currentQuestion.type === 'order' && (
           <QuestionOrder
             question={currentQuestion}
-            items={orderState[currentQuestion.id] || currentQuestion.options}
+            items={(currentAnswer as string[]) || orderState[currentQuestion.id] || currentQuestion.options}
             isLocked={isCurrentChecked}
             onReorder={handleOrderReorder}
           />
@@ -593,11 +682,11 @@ export function QuizRunner({ course, quiz }: QuizRunnerProps) {
         {/* Bottom Navigator and Progress Bar */}
         <QuestionNavigator
           currentIndex={currentIndex}
-          totalQuestions={quiz.questions.length}
+          totalQuestions={questions.length}
           answeredIndices={answeredIndices}
           checkedIndices={checkedIndices}
           canGoNext={isAnswered(currentQuestion, currentAnswer)}
-          isLastQuestion={currentIndex === quiz.questions.length - 1}
+          isLastQuestion={currentIndex === questions.length - 1}
           isCheckedCurrent={isCurrentChecked}
           onNavigate={handleNavigateQuestion}
           onCheckAnswer={handleCheckAnswer}

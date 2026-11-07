@@ -97,6 +97,7 @@ export interface QuizAttempt {
   answers: Record<string, number | number[] | string[]>;
   scorePercent: number;
   perQuestionResult: Record<string, boolean>;
+  mode?: 'full' | 'retry-incorrect';
 }
 
 export interface Note {
