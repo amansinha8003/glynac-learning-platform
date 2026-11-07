@@ -5,12 +5,20 @@ import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { ThemeProvider } from '@/components/theme-provider';
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
 export const metadata: Metadata = {
-  title: 'Glynac Learn | Online Learning Platform',
-  description: 'Master in-demand development, data science, design, and product management skills.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'Glynac Learn | Online Learning Platform',
+    template: '%s | Glynac Learn',
+  },
+  description: 'Master in-demand development, data science, design, and product management skills with interactive video lessons, quizzes, and certificates.',
   openGraph: {
     title: 'Glynac Learn | Online Learning Platform',
-    description: 'Master in-demand development, data science, design, and product management skills.',
+    description: 'Master in-demand development, data science, design, and product management skills with interactive video lessons, quizzes, and certificates.',
+    url: siteUrl,
+    siteName: 'Glynac Learn',
     type: 'website',
   },
   icons: {

@@ -2,6 +2,8 @@
 
 A modern, full-featured online learning platform built with Next.js 16 (App Router), React 19, TypeScript strict mode, Tailwind CSS v4, shadcn/ui, Zustand, Framer Motion, and `@dnd-kit`.
 
+> **Live Demo**: _[Add your live Vercel URL here after deployment]_
+
 ---
 
 ## 🌟 Tech Stack & Architectural Decisions
@@ -51,12 +53,32 @@ npm run lint
 npx tsc --noEmit
 ```
 
-### Production Build
+### Production Build & Local Preview
 
 ```bash
+# Build the optimized production bundle
 npm run build
+
+# Start the local production server
 npm run start
 ```
+
+---
+
+## 🚢 Deployment
+
+### Deploying to Vercel
+
+1. **Push Repository**: Push your code to GitHub, GitLab, or Bitbucket.
+2. **Import Project**: In the [Vercel Dashboard](https://vercel.com/new), select and import the repository.
+3. **Build & Settings**: Vercel automatically detects Next.js settings:
+   - **Framework Preset**: Next.js
+   - **Build Command**: `next build` (or `npm run build`)
+   - **Output Directory**: `.next`
+   - **Install Command**: `npm install`
+4. **Environment Variables**:
+   - `NEXT_PUBLIC_SITE_URL` (optional): Set to your production URL (e.g. `https://your-learning-platform.vercel.app`) for canonical OpenGraph tags and metadata base.
+5. **Deploy**: Click **Deploy**. Vercel will build and serve all static and dynamically streamed pages globally.
 
 ---
 
