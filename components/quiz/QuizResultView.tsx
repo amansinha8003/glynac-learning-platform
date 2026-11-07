@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Course, Quiz } from '@/types/learning';
 import { useLearningStore } from '@/store/learningStore';
 import { useHydrated } from '@/lib/useHydrated';
-import { getCourseProgressPercent } from '@/lib/selectors';
 import { formatAttemptDuration, getMotivatingMessage } from '@/lib/results';
+import { isCourseComplete } from '@/lib/certificate';
+import { quizzes } from '@/data';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { ScoreRing } from './ScoreRing';
@@ -43,6 +44,7 @@ export function QuizResultView({ course, quiz, attemptId }: QuizResultViewProps)
   const router = useRouter();
   const isHydrated = useHydrated();
   const quizAttempts = useLearningStore((s) => s.quizAttempts);
+  const enrolledCourseIds = useLearningStore((s) => s.enrolledCourseIds);
   const progress = useLearningStore((s) => s.progress);
 
   const [copied, setCopied] = useState(false);
@@ -128,9 +130,9 @@ export function QuizResultView({ course, quiz, attemptId }: QuizResultViewProps)
 
   const motivatingMessage = getMotivatingMessage(attempt.scorePercent, quiz.passingScorePercent);
 
-  // Course progress & next lesson
-  const courseProgressPercent = getCourseProgressPercent(course, progress);
-  const isCourseFinished = courseProgressPercent === 100 || !!progress.courses[course.id]?.completedAt;
+  // Course progress & certificate status
+  const certStatus = isCourseComplete(course, enrolledCourseIds, progress, quizAttempts, quizzes);
+  const remainingItemsCount = certStatus.remainingLessons.length + certStatus.unpassedQuizzes.length;
 
   // Retake handling: clear session storage
   const handleRetakeFull = () => {
@@ -361,8 +363,8 @@ export function QuizResultView({ course, quiz, attemptId }: QuizResultViewProps)
         </div>
       </div>
 
-      {/* Course Completion Banner (if 100% completed) */}
-      {isCourseFinished && (
+      {/* Course Completion Banner / Certificate CTA */}
+      {certStatus.isComplete ? (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3.5 text-center sm:text-left">
             <div className="h-12 w-12 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
@@ -373,7 +375,7 @@ export function QuizResultView({ course, quiz, attemptId }: QuizResultViewProps)
                 Course Fully Completed!
               </h2>
               <p className="text-xs text-muted-foreground">
-                Congratulations! You have completed all lessons and assessments in this course.
+                Congratulations! You have completed all lessons and passed all curriculum assessments.
               </p>
             </div>
           </div>
@@ -386,6 +388,27 @@ export function QuizResultView({ course, quiz, attemptId }: QuizResultViewProps)
             <Link href={`/courses/${course.slug}/certificate`}>
               <Award className="h-4 w-4" />
               Claim Certificate
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border bg-card p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 text-center sm:text-left">
+            <div className="h-11 w-11 rounded-2xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
+              <Award className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Course Certificate</h3>
+              <p className="text-xs text-muted-foreground">
+                Complete all lessons and assessments to unlock your verified credential ({remainingItemsCount} {remainingItemsCount === 1 ? 'item' : 'items'} remaining).
+              </p>
+            </div>
+          </div>
+
+          <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5 text-xs font-semibold">
+            <Link href={`/courses/${course.slug}/certificate`}>
+              <Award className="h-3.5 w-3.5" />
+              Get Certificate ({remainingItemsCount} left)
             </Link>
           </Button>
         </div>

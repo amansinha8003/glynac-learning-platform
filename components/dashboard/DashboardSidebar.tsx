@@ -28,7 +28,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   },
   {
     title: 'Certificates',
-    href: '#certificates',
+    href: '/certificates',
     icon: Award,
   },
 ];

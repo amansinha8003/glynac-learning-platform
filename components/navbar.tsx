@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { BookOpen, GraduationCap, Moon, Sun, Flame, Laptop } from 'lucide-react';
+import { BookOpen, GraduationCap, Moon, Sun, Flame, Laptop, Award } from 'lucide-react';
 import { useLearningStore } from '@/store/learningStore';
 import { getStreak } from '@/lib/selectors';
 import { useHydrated } from '@/lib/useHydrated';
@@ -71,6 +71,18 @@ export function Navbar() {
             >
               <BookOpen className="h-4 w-4" />
               Courses
+            </Link>
+
+            <Link
+              href="/certificates"
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                pathname === '/certificates'
+                  ? 'bg-primary-soft text-primary shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              }`}
+            >
+              <Award className="h-4 w-4" />
+              Certificates
             </Link>
           </nav>
         </div>

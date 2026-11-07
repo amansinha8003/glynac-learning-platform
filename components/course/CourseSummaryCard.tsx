@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Course } from '@/types/learning';
 import { useLearningStore } from '@/store/learningStore';
 import { getCourseProgressPercent } from '@/lib/selectors';
+import { isCourseComplete } from '@/lib/certificate';
+import { quizzes } from '@/data';
 import { useHydrated } from '@/lib/useHydrated';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -37,10 +39,17 @@ export function CourseSummaryCard({
   const isHydrated = useHydrated();
   const enrolledCourseIds = useLearningStore((s) => s.enrolledCourseIds);
   const progress = useLearningStore((s) => s.progress);
+  const quizAttempts = useLearningStore((s) => s.quizAttempts);
 
   const isEnrolled = isHydrated && enrolledCourseIds.includes(course.id);
   const progressPercent = isEnrolled ? getCourseProgressPercent(course, progress) : 0;
-  const isCompleted = progressPercent === 100;
+  const certStatus = isEnrolled
+    ? isCourseComplete(course, enrolledCourseIds, progress, quizAttempts, quizzes)
+    : null;
+  const isCompleted = certStatus?.isComplete ?? progressPercent === 100;
+  const remainingCount = certStatus
+    ? certStatus.remainingLessons.length + certStatus.unpassedQuizzes.length
+    : 0;
   const totalLessons = course.sections.reduce((acc, s) => acc + s.lessons.length, 0);
 
   return (
@@ -109,6 +118,25 @@ export function CourseSummaryCard({
                 <span className="font-bold text-primary">{progressPercent}%</span>
               </div>
               <Progress value={progressPercent} className="h-2" />
+
+              {/* Certificate Call to Action */}
+              <div className="pt-2">
+                {isCompleted ? (
+                  <Button asChild size="sm" className="w-full h-9 text-xs font-bold gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs">
+                    <Link href={`/courses/${course.slug}/certificate`}>
+                      <Award className="h-4 w-4" />
+                      <span>Claim Certificate</span>
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild variant="outline" size="sm" className="w-full h-9 text-xs font-semibold gap-2">
+                    <Link href={`/courses/${course.slug}/certificate`}>
+                      <Award className="h-4 w-4 text-primary" />
+                      <span>Get Certificate ({remainingCount} left)</span>
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

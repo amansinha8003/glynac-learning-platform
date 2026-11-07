@@ -23,9 +23,14 @@ export function CertificatesCard({ completedCourses }: CertificatesCardProps) {
           </div>
         </div>
 
-        <span className="text-xs font-bold text-foreground font-mono tabular-nums">
-          {completedCourses.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-foreground font-mono tabular-nums">
+            {completedCourses.length}
+          </span>
+          <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-[11px] text-primary">
+            <Link href="/certificates">View All &rarr;</Link>
+          </Button>
+        </div>
       </div>
 
       {completedCourses.length === 0 ? (

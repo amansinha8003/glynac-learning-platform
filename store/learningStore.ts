@@ -16,6 +16,7 @@ export interface UserPersistedState {
   quizAttempts: QuizAttempt[];
   streakDates: string[];
   activityByDate: Record<string, number>;
+  celebratedCertificates: string[];
 }
 
 export interface LearningState extends UserPersistedState {
@@ -32,6 +33,8 @@ export interface LearningState extends UserPersistedState {
   saveQuizAttempt: (attempt: Omit<QuizAttempt, 'id'>) => string;
   recordActivity: () => void;
   resetUserData: () => void;
+  markCertificateCelebrated: (courseId: string) => void;
+  setCourseCompletedAt: (courseId: string, completedAt?: string) => void;
 }
 
 const initialProgress: ProgressState = {
@@ -53,8 +56,34 @@ export const useLearningStore = create<LearningState>()(
       quizAttempts: [],
       streakDates: [],
       activityByDate: {},
+      celebratedCertificates: [],
 
       setDisplayName: (name: string) => set({ displayName: name.trim() || 'Learner' }),
+
+      markCertificateCelebrated: (courseId: string) =>
+        set((state) => ({
+          celebratedCertificates: state.celebratedCertificates.includes(courseId)
+            ? state.celebratedCertificates
+            : [...state.celebratedCertificates, courseId],
+        })),
+
+      setCourseCompletedAt: (courseId: string, completedAt = new Date().toISOString()) =>
+        set((state) => {
+          const currentCourse = state.progress.courses[courseId] || {};
+          if (currentCourse.completedAt) return state; // preserve initial completion timestamp
+          return {
+            progress: {
+              ...state.progress,
+              courses: {
+                ...state.progress.courses,
+                [courseId]: {
+                  ...currentCourse,
+                  completedAt,
+                },
+              },
+            },
+          };
+        }),
 
       enrollCourse: (courseId: string) => {
         const { enrolledCourseIds, recordActivity } = get();
@@ -198,19 +227,26 @@ export const useLearningStore = create<LearningState>()(
           quizAttempts: [],
           streakDates: [],
           activityByDate: {},
+          celebratedCertificates: [],
         });
       },
     }),
     {
       name: 'learning-platform',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
-        const state = (persistedState || {}) as Record<string, unknown>;
+        let state = (persistedState || {}) as Record<string, unknown>;
         if (version < 2) {
-          return {
+          state = {
             ...state,
             displayName: (state.displayName as string) || 'Learner',
             activityByDate: (state.activityByDate as Record<string, number>) || {},
+          };
+        }
+        if (version < 3) {
+          state = {
+            ...state,
+            celebratedCertificates: (state.celebratedCertificates as string[]) || [],
           };
         }
         return state;
@@ -223,6 +259,7 @@ export const useLearningStore = create<LearningState>()(
         quizAttempts: state.quizAttempts,
         streakDates: state.streakDates,
         activityByDate: state.activityByDate,
+        celebratedCertificates: state.celebratedCertificates,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
