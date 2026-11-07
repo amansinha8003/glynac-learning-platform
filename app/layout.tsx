@@ -1,27 +1,21 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Navbar } from '@/components/navbar';
+import { Footer } from '@/components/footer';
 import { ThemeProvider } from '@/components/theme-provider';
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-sans',
-  display: 'swap',
-  fallback: ['system-ui', '-apple-system', 'sans-serif'],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  display: 'swap',
-  fallback: ['ui-monospace', 'monospace'],
-});
 
 export const metadata: Metadata = {
   title: 'Glynac Learn | Online Learning Platform',
   description: 'Master in-demand development, data science, design, and product management skills.',
+  openGraph: {
+    title: 'Glynac Learn | Online Learning Platform',
+    description: 'Master in-demand development, data science, design, and product management skills.',
+    type: 'website',
+  },
+  icons: {
+    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>",
+  },
 };
 
 export default function RootLayout({
@@ -33,17 +27,28 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 z-50 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl shadow-lg focus:outline-hidden focus:ring-2 focus:ring-ring"
+        >
+          Skip to content
+        </a>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <Navbar />
-          <main className="flex-1">{children}</main>
+          <Suspense fallback={<div className="h-16 w-full border-b border-border bg-card/90" />}>
+            <Navbar />
+          </Suspense>
+          <main id="main-content" className="flex-1">
+            {children}
+          </main>
+          <Footer />
         </ThemeProvider>
       </body>
     </html>

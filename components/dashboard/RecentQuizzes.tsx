@@ -43,6 +43,9 @@ export function RecentQuizzes({ attempts, quizzes, courses }: RecentQuizzesProps
               Complete quizzes inside lessons to evaluate your retention and track your mastery here.
             </p>
           </div>
+          <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+            <Link href="/courses">Take your first quiz</Link>
+          </Button>
         </div>
       ) : (
         <div className="space-y-2.5">

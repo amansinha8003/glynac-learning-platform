@@ -1,15 +1,7 @@
 'use client';
 
 import { CertificateData } from '@/lib/certificate';
-import { Caveat } from 'next/font/google';
 import { Award, Check } from 'lucide-react';
-
-const cursiveFont = Caveat({
-  subsets: ['latin'],
-  weight: ['500', '700'],
-  display: 'swap',
-  fallback: ['cursive', 'serif'],
-});
 
 interface CertificatePaperProps {
   data: CertificateData;
@@ -108,7 +100,10 @@ export function CertificatePaper({ data }: CertificatePaperProps) {
       <div className="relative grid grid-cols-3 items-end pt-3 sm:pt-6 border-t border-zinc-200/80">
         {/* Left: Instructor Signature */}
         <div className="text-left space-y-0.5">
-          <div className={`${cursiveFont.className} text-xl sm:text-3xl md:text-4xl text-zinc-900 font-bold -rotate-3 select-none`}>
+          <div
+            style={{ fontFamily: "'Caveat', 'Dancing Script', 'Brush Script MT', cursive, serif" }}
+            className="text-xl sm:text-3xl md:text-4xl text-zinc-900 font-bold -rotate-3 select-none"
+          >
             {data.instructorName}
           </div>
           <div className="h-0.5 w-32 sm:w-44 bg-zinc-300" />
@@ -145,7 +140,10 @@ export function CertificatePaper({ data }: CertificatePaperProps) {
 
         {/* Right: Academic Director Signature */}
         <div className="text-right space-y-0.5">
-          <div className={`${cursiveFont.className} text-xl sm:text-3xl md:text-4xl text-zinc-900 font-bold rotate-2 select-none`}>
+          <div
+            style={{ fontFamily: "'Caveat', 'Dancing Script', 'Brush Script MT', cursive, serif" }}
+            className="text-xl sm:text-3xl md:text-4xl text-zinc-900 font-bold rotate-2 select-none"
+          >
             Dr. Evelyn Vance
           </div>
           <div className="h-0.5 w-32 sm:w-44 bg-zinc-300 ml-auto" />

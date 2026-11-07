@@ -12,14 +12,26 @@ import {
   QuestionAnswer,
 } from '@/lib/quiz';
 import { useLearningStore } from '@/store/learningStore';
+import dynamic from 'next/dynamic';
 import { useHydrated } from '@/lib/useHydrated';
 import { getBestAttempt } from '@/lib/selectors';
 import { QuizHeader } from './QuizHeader';
 import { QuestionSingle } from './QuestionSingle';
 import { QuestionMulti } from './QuestionMulti';
-import { QuestionOrder } from './QuestionOrder';
 import { FeedbackPanel } from './FeedbackPanel';
 import { QuestionNavigator } from './QuestionNavigator';
+
+const QuestionOrder = dynamic(
+  () => import('./QuestionOrder').then((mod) => mod.QuestionOrder),
+  {
+    loading: () => (
+      <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">
+        Loading question...
+      </div>
+    ),
+    ssr: false,
+  }
+);
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {

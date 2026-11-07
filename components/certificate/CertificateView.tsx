@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Course, Instructor, Quiz } from '@/types/learning';
 import { useLearningStore } from '@/store/learningStore';
 import { useHydrated } from '@/lib/useHydrated';
@@ -8,7 +9,11 @@ import { isCourseComplete, getCertificateData } from '@/lib/certificate';
 import { CertificateToolbar } from './CertificateToolbar';
 import { CertificatePaper } from './CertificatePaper';
 import { LockedCertificate } from './LockedCertificate';
-import { ConfettiBurst } from './ConfettiBurst';
+
+const ConfettiBurst = dynamic(
+  () => import('./ConfettiBurst').then((mod) => mod.ConfettiBurst),
+  { ssr: false }
+);
 
 interface CertificateViewProps {
   course: Course;
