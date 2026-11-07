@@ -2,14 +2,24 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, GraduationCap, Moon, Sun, Flame } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { BookOpen, GraduationCap, Moon, Sun, Flame, Laptop } from 'lucide-react';
 import { useLearningStore } from '@/store/learningStore';
 import { getStreak } from '@/lib/selectors';
 import { useHydrated } from '@/lib/useHydrated';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 export function Navbar() {
   const pathname = usePathname();
   const isHydrated = useHydrated();
+  const { setTheme, resolvedTheme } = useTheme();
+
   const streakDates = useLearningStore((s) => s.streakDates);
   const hasStoreHydrated = useLearningStore((s) => s.hasHydrated);
 
@@ -19,11 +29,11 @@ export function Navbar() {
     : { currentStreak: 0, bestStreak: 0, activeToday: false };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-card/90 backdrop-blur-md shadow-xs">
       <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <div className="flex items-center gap-8">
-          <Link href="/courses" className="flex items-center gap-2.5 group">
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-transform group-hover:scale-105">
               <GraduationCap className="h-5 w-5" />
             </div>
@@ -38,28 +48,29 @@ export function Navbar() {
           </Link>
 
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1.5" aria-label="Main navigation">
             <Link
-              href="/courses"
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                pathname?.startsWith('/courses')
-                  ? 'bg-accent text-accent-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-              }`}
-            >
-              <BookOpen className="h-4 w-4" />
-              Courses
-            </Link>
-            <Link
-              href="/my-learning"
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                pathname?.startsWith('/my-learning')
-                  ? 'bg-accent text-accent-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+              href="/dashboard"
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                pathname === '/dashboard' || pathname === '/my-learning'
+                  ? 'bg-primary-soft text-primary shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
               }`}
             >
               <GraduationCap className="h-4 w-4" />
               My Learning
+            </Link>
+
+            <Link
+              href="/courses"
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                pathname?.startsWith('/courses')
+                  ? 'bg-primary-soft text-primary shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              }`}
+            >
+              <BookOpen className="h-4 w-4" />
+              Courses
             </Link>
           </nav>
         </div>
@@ -69,27 +80,59 @@ export function Navbar() {
           {/* Streak Badge */}
           {isReady && streak.currentStreak > 0 && (
             <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                 streak.activeToday
-                  ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400'
+                  ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400'
                   : 'bg-muted text-muted-foreground border-border'
               }`}
               title={`${streak.currentStreak} day learning streak!`}
             >
               <Flame className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-              <span>{streak.currentStreak}d</span>
+              <span className="tabular-nums">{streak.currentStreak}d streak</span>
             </div>
           )}
 
-          {/* Theme Toggle Placeholder */}
-          <button
-            type="button"
-            aria-label="Toggle theme"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          </button>
+          {/* Theme Dropdown Toggle */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-xl border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                aria-label="Select color theme"
+              >
+                {isHydrated && resolvedTheme === 'dark' ? (
+                  <Moon className="h-4 w-4 text-primary" />
+                ) : (
+                  <Sun className="h-4 w-4 text-amber-500" />
+                )}
+                <span className="sr-only">Toggle theme</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36 rounded-xl">
+              <DropdownMenuItem
+                onClick={() => setTheme('light')}
+                className="gap-2 text-xs font-medium cursor-pointer"
+              >
+                <Sun className="h-3.5 w-3.5 text-amber-500" />
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme('dark')}
+                className="gap-2 text-xs font-medium cursor-pointer"
+              >
+                <Moon className="h-3.5 w-3.5 text-primary" />
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme('system')}
+                className="gap-2 text-xs font-medium cursor-pointer"
+              >
+                <Laptop className="h-3.5 w-3.5 text-muted-foreground" />
+                System
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

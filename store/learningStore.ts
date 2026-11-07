@@ -9,16 +9,19 @@ import {
 } from '@/types/learning';
 
 export interface UserPersistedState {
+  displayName: string;
   enrolledCourseIds: string[];
   progress: ProgressState;
   notes: Note[];
   quizAttempts: QuizAttempt[];
   streakDates: string[];
+  activityByDate: Record<string, number>;
 }
 
 export interface LearningState extends UserPersistedState {
   hasHydrated: boolean;
   setHasHydrated: (hydrated: boolean) => void;
+  setDisplayName: (name: string) => void;
   enrollCourse: (courseId: string) => void;
   markLessonComplete: (courseId: string, lessonId: string, completed?: boolean) => void;
   setLessonPosition: (courseId: string, lessonId: string, positionSec: number) => void;
@@ -43,11 +46,15 @@ export const useLearningStore = create<LearningState>()(
       hasHydrated: false,
       setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
 
+      displayName: 'Learner',
       enrolledCourseIds: ['course-nextjs-pro'],
       progress: initialProgress,
       notes: [],
       quizAttempts: [],
       streakDates: [],
+      activityByDate: {},
+
+      setDisplayName: (name: string) => set({ displayName: name.trim() || 'Learner' }),
 
       enrollCourse: (courseId: string) => {
         const { enrolledCourseIds, recordActivity } = get();
@@ -170,30 +177,52 @@ export const useLearningStore = create<LearningState>()(
 
       recordActivity: () => {
         const today = format(new Date(), 'yyyy-MM-dd');
-        const { streakDates } = get();
-        if (!streakDates.includes(today)) {
-          set({ streakDates: [...streakDates, today].sort() });
-        }
+        const { streakDates, activityByDate = {} } = get();
+        const nextDates = streakDates.includes(today) ? streakDates : [...streakDates, today].sort();
+        const nextActivity = {
+          ...activityByDate,
+          [today]: (activityByDate[today] || 0) + 1,
+        };
+        set({
+          streakDates: nextDates,
+          activityByDate: nextActivity,
+        });
       },
 
       resetUserData: () => {
         set({
+          displayName: 'Learner',
           enrolledCourseIds: [],
           progress: initialProgress,
           notes: [],
           quizAttempts: [],
           streakDates: [],
+          activityByDate: {},
         });
       },
     }),
     {
       name: 'learning-platform',
+      version: 2,
+      migrate: (persistedState: unknown, version: number) => {
+        const state = (persistedState || {}) as Record<string, unknown>;
+        if (version < 2) {
+          return {
+            ...state,
+            displayName: (state.displayName as string) || 'Learner',
+            activityByDate: (state.activityByDate as Record<string, number>) || {},
+          };
+        }
+        return state;
+      },
       partialize: (state) => ({
+        displayName: state.displayName,
         enrolledCourseIds: state.enrolledCourseIds,
         progress: state.progress,
         notes: state.notes,
         quizAttempts: state.quizAttempts,
         streakDates: state.streakDates,
+        activityByDate: state.activityByDate,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
@@ -201,4 +230,3 @@ export const useLearningStore = create<LearningState>()(
     }
   )
 );
-
