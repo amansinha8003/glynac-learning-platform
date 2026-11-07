@@ -44,12 +44,14 @@ interface VideoPlayerProps {
   courseSlug: string;
   lesson: Lesson;
   nextLesson?: Lesson;
+  initialTime?: number;
   onTimeUpdate?: (currentTime: number) => void;
+  onPlayStateChange?: (isPlaying: boolean) => void;
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
   function VideoPlayer(
-    { courseId, courseSlug, lesson, nextLesson, onTimeUpdate },
+    { courseId, courseSlug, lesson, nextLesson, initialTime, onTimeUpdate, onPlayStateChange },
     ref
   ) {
     const router = useRouter();
@@ -195,9 +197,23 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       };
     }, [commitPosition]);
 
-    // Restore position on load (after hydration)
+    // Notify play state change
+    useEffect(() => {
+      onPlayStateChange?.(isPlaying);
+    }, [isPlaying, onPlayStateChange]);
+
+    // Restore position on load (after hydration or deep link)
     useEffect(() => {
       if (!isHydrated || !hasStoreHydrated) return;
+
+      if (initialTime !== undefined && initialTime > 0) {
+        if (videoRef.current) {
+          videoRef.current.currentTime = initialTime;
+        }
+        setCurrentTime(initialTime);
+        currentTimeRef.current = initialTime;
+        return;
+      }
 
       const savedSec = progress.lessons[lesson.id]?.lastPositionSec || 0;
       if (savedSec > 5 && savedSec < (lesson.durationSeconds || 60) - 5) {
@@ -210,7 +226,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         setCurrentTime(savedSec);
         currentTimeRef.current = savedSec;
       }
-    }, [isHydrated, hasStoreHydrated, lesson.id, lesson.durationSeconds, progress.lessons]);
+    }, [isHydrated, hasStoreHydrated, lesson.id, lesson.durationSeconds, progress.lessons, initialTime]);
 
     // Playback control functions
     const playVideo = () => {
